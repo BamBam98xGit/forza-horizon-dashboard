@@ -19,7 +19,7 @@ connected_clients = set()
 def auto_launch_browser():
     time.sleep(1.5) # Let the network ports bind safely first
     print("\n[LAUNCHER] Automatically spinning up your visual interface web page...")
-    webbrowser.open("file:///sdcard/Download/index.html")
+    webbrowser.open("file:///storage/emulated/0/forza-horizon-dashboard/index.html")
 
 async def broadcast_telemetry():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
