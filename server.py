@@ -4,43 +4,40 @@ import socket
 import struct
 import json
 import websockets
-import webbrowser
-import threading
-import time
 
-FORZA_IP = "0.0.0.0"
+# INCOMING NETWORK TRANSLATION
+# BIND_IP "0.0.0.0" instructs the phone to listen to ALL network channels
+BIND_IP = "0.0.0.0"
 FORZA_PORT = 9994
-WS_IP = "0.0.0.0"
 WS_PORT = 8765
 
 connected_clients = set()
 
-# Automated Mobile Browser Open Loop
-def auto_launch_browser():
-    time.sleep(1.5) # Let the network ports bind safely first
-    print("\n[LAUNCHER] Automatically spinning up your visual interface web page...")
-    webbrowser.open("file:///storage/emulated/0/forza-horizon-dashboard/index.html")
-
 async def broadcast_telemetry():
+    # Force socket allocation to listen to external network ports
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((FORZA_IP, FORZA_PORT))
+    sock.bind((BIND_IP, FORZA_PORT))
     sock.setblocking(False)
     
     loop = asyncio.get_running_loop()
     print(f"==================================================")
-    print(f" FORZA TELEMETRY GATEWAY SERVER RUNNING           ")
+    print(f" FORZA MATCH NETWORK RECEIVER ACTIVE             ")
     print(f"==================================================")
-    print(f" Listening for Game UDP Stream on Port: {FORZA_PORT}")
-    print(f" Broadcasting WebSockets on Port:       {WS_PORT}")
+    print(f" Listening for PS5 UDP packets on Port: {FORZA_PORT}")
+    print(f" WebSockets server ready on Port:       {WS_PORT}")
     print(f"==================================================")
 
     while True:
         try:
-            data, _ = await loop.sock_recv(sock, 1024)
+            data, addr = await loop.sock_recv(sock, 1024)
+            
+            # Diagnostic flag: lets you see if a packet arrives from your console
+            print(f"[PACKET RECEIVED] Catching data frames from: {addr[0]}", end="\r")
+            
             if not connected_clients:
-                await asyncio.sleep(0.01)
                 continue
 
+            # Core Variables Unpacking
             rpm = struct.unpack_from('<f', data, 16)
             max_rpm = struct.unpack_from('<f', data, 8)
             idle_rpm = struct.unpack_from('<f', data, 12)
@@ -64,9 +61,10 @@ async def broadcast_telemetry():
                 "gforce": { "lat": round(g_lat, 2), "long": round(g_long, 2) }
             })
 
-            await asyncio.gather(*[client.send(payload) for client in connected_clients], return_exceptions=True)
+            if connected_clients:
+                await asyncio.gather(*[client.send(payload) for client in connected_clients], return_exceptions=True)
 
-        except Exception:
+        except Exception as e:
             await asyncio.sleep(0.001)
 
 async def ws_handler(websocket):
@@ -77,10 +75,7 @@ async def ws_handler(websocket):
         connected_clients.remove(websocket)
 
 async def main():
-    # Spin up browser trigger in an isolated thread so it doesn't block the network
-    threading.Thread(target=auto_launch_browser, daemon=True).start()
-    
-    async with websockets.serve(ws_handler, WS_IP, WS_PORT):
+    async with websockets.serve(ws_handler, BIND_IP, WS_PORT):
         await broadcast_telemetry()
 
 if __name__ == "__main__":
