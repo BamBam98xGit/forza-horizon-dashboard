@@ -1,15 +1,25 @@
+cat << 'EOF' > server.py
 import asyncio
 import socket
 import struct
 import json
 import websockets
+import webbrowser
+import threading
+import time
 
-FORZA_IP = "0.0.0.0" # Binds to all network adapters so tablets/phones can connect
+FORZA_IP = "0.0.0.0"
 FORZA_PORT = 9994
 WS_IP = "0.0.0.0"
 WS_PORT = 8765
 
 connected_clients = set()
+
+# Automated Mobile Browser Open Loop
+def auto_launch_browser():
+    time.sleep(1.5) # Let the network ports bind safely first
+    print("\n[LAUNCHER] Automatically spinning up your visual interface web page...")
+    webbrowser.open("file:///sdcard/Download/index.html")
 
 async def broadcast_telemetry():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -67,8 +77,12 @@ async def ws_handler(websocket):
         connected_clients.remove(websocket)
 
 async def main():
+    # Spin up browser trigger in an isolated thread so it doesn't block the network
+    threading.Thread(target=auto_launch_browser, daemon=True).start()
+    
     async with websockets.serve(ws_handler, WS_IP, WS_PORT):
         await broadcast_telemetry()
 
 if __name__ == "__main__":
     asyncio.run(main())
+EOF
