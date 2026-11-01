@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forza Horizon Local Web Dashboard</title>
+    <style>
+        body {
+            background-color: #060709;
+            color: #ffffff;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .race-grid {
+            display: grid;
+            grid-template-columns: 220px 380px 220px;
+            gap: 20px;
+            align-items: stretch;
+        }
+        .module {
+            background: #101318;
+            border-radius: 20px;
+            border: 2px solid #1f242d;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+        }
+        .center-dash { text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .gear { font-size: 84px; font-weight: 900; color: #00f2fe; line-height: 1; }
+        .speed { font-size: 64px; font-weight: 800; margin: 10px 0 0 0; }
+        .unit { font-size: 14px; color: #526173; letter-spacing: 2px; }
+        
+        .g-circle {
+            width: 140px;
+            height: 140px;
+            border: 2px solid #2d3748;
+            border-radius: 50%;
+            margin: 15px auto;
+            position: relative;
+            background: radial-gradient(circle, rgba(16,19,24,1) 0%, rgba(8,10,14,1) 100%);
+        }
+        .g-crosshair-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: #2d3748; }
+        .g-crosshair-v { position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: #2d3748; }
+        .g-dot {
+            width: 12px;
+            height: 12px;
+            background: #ff0055;
+            box-shadow: 0 0 12px #ff0055;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: top 0.05s linear, left 0.05s linear;
+        }
+        .g-readout { font-size: 13px; font-weight: bold; color: #a0aec0; margin-top: 5px; text-align: center;}
+
+        .timer-title { font-size: 12px; font-weight: bold; color: #718096; letter-spacing: 1px; text-align: center; margin-bottom: 10px; }
+        .live-timer { font-size: 34px; font-weight: 800; text-align: center; color: #00ff66; font-family: monospace; margin: 15px 0; text-shadow: 0 0 10px rgba(0,255,102,0.2); }
+        .timer-hint { font-size: 10px; color: #526173; text-align: center; margin-bottom: 15px; text-transform: uppercase; }
+        .lap-board { max-height: 80px; overflow-y: auto; font-family: monospace; font-size: 13px; color: #a0aec0; border-top: 1px solid #1f242d; padding-top: 10px; }
+        .lap-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+
+        .records-shelf { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; background: #141820; border: 2px dashed #2d3748; }
+        .record-card { text-align: center; border-right: 1px solid #222c3a; }
+        .record-card:last-child { border-right: none; }
+        .record-title { font-size: 11px; font-weight: bold; color: #ff0055; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
+        .record-value { font-size: 28px; font-weight: 800; color: #ffffff; }
+        .record-sub { font-size: 11px; color: #627284; margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <div class="race-grid">
+            <div class="module">
+                <div style="font-size: 12px; font-weight: bold; color:#718096; letter-spacing:1px; text-align:center;">G-FORCE ANALYTICS</div>
+                <div class="g-circle">
+                    <div class="g-crosshair-h"></div>
+                    <div class="g-crosshair-v"></div>
+                    <div class="g-dot" id="gDot"></div>
+                </div>
+                <div class="g-readout" id="gReadout">0.00 G</div>
+            </div>
+
+            <div class="module center-dash">
+                <div class="gear" id="gear">N</div>
+                <div class="speed" id="speed">0</div>
+                <div class="unit">MPH</div>
+            </div>
+
+            <div class="module">
+                <div class="timer-title">CHRONOMETER SESSION</div>
+                <div class="live-timer" id="timerDisplay">00:00.00</div>
+                <div class="timer-hint">Press [Space] to Split / Lap</div>
+                <div class="lap-board" id="lapBoard"></div>
+            </div>
+        </div>
+
+        <div class="module records-shelf">
+            <div class="record-card">
+                <div class="record-title">⚡ Session Top Speed</div>
+                <div class="record-value" id="peakSpeed">0 <span style="font-size:14px; font-weight:normal; color:#526173;">MPH</span></div>
+                <div class="record-sub">Maximum terminal velocity achieved</div>
+            </div>
+            
+            <div class="record-card">
+                <div class="record-title">⏱️ Fast Lap Split</div>
+                <div class="record-value" id="bestLapDisplay">--:--.--</div>
+                <div class="record-sub">Quickest sector completion profile</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Use window.location.hostname so phones/tablets automatically connect to your PC's IP address!
+        const host = window.location.hostname || 'localhost';
+        const ws = new WebSocket(`ws://${host}:8765`);
+        
+        const speedEl = document.getElementById('speed');
+        const gearEl = document.getElementById('gear');
+        const gDot = document.getElementById('gDot');
+        const gReadout = document.getElementById('gReadout');
+        const pSpeedEl = document.getElementById('peakSpeed');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const lapBoard = document.getElementById('lapBoard');
+        const bestLapDisplay = document.getElementById('bestLapDisplay');
+
+        let topSpeedRecord = 0;
+        let timerInterval = null;
+        let startTime = null;
+        let elapsedTime = 0;
+        let timerRunning = false;
+        let lapCounter = 1;
+        let bestLapRaw = Infinity;
+
+        function formatTime(totalMs) {
+            const minutes = Math.floor(totalMs / 60000);
+            const seconds = Math.floor((totalMs % 60000) / 1000);
+            const hundredths = Math.floor((totalMs % 1000) / 10);
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`;
+        }
+
+        function startTimer() {
+            if (!timerRunning) {
+                startTime = Date.now() - elapsedTime;
+                timerInterval = setInterval(() => {
+                    elapsedTime = Date.now() - startTime;
+                    timerDisplay.innerText = formatTime(elapsedTime);
+                }, 10);
+                timerRunning = true;
+            }
+        }
+
+        function triggerLapSplit() {
+            if (!timerRunning && elapsedTime === 0) return;
+            const currentLapTimeRaw = elapsedTime;
+            const formattedLap = formatTime(currentLapTimeRaw);
+
+            const newRow = document.createElement('div');
+            newRow.className = 'lap-row';
+            newRow.innerHTML = `<span>LAP ${lapCounter}</span><span>${formattedLap}</span>`;
+            lapBoard.insertBefore(newRow, lapBoard.firstChild);
+
+            if (currentLapTimeRaw < bestLapRaw) {
+                bestLapRaw = currentLapTimeRaw;
+                bestLapDisplay.innerText = formattedLap;
+                bestLapDisplay.style.color = "#00ff66";
+            }
+
+            elapsedTime = 0;
+            startTime = Date.now();
+            lapCounter++;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                triggerLapSplit();
+            }
+        });
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            speedEl.innerText = data.speed;
+            gearEl.innerText = data.gear;
+
+            if (data.speed > 2 && !timerRunning && elapsedTime === 0) {
+                startTimer();
+            }
+
+            if (data.speed > topSpeedRecord) {
+                topSpeedRecord = data.speed;
+                pSpeedEl.innerHTML = `${topSpeedRecord} <span style="font-size:14px; font-weight:normal; color:#526173;">MPH</span>`;
+            }
+
+            const maxGThreshold = 2.5; 
+            const circleRadiusPx = 70; 
+            const xOffsetPx = (data.gforce.lat / maxGThreshold) * circleRadiusPx;
+            const yOffsetPx = (data.gforce.long / maxGThreshold) * circleRadiusPx;
+
+            const finalLeft = 70 + Math.max(-60, Math.min(60, xOffsetPx));
+            const finalTop = 70 - Math.max(-60, Math.min(60, yOffsetPx));
+
+            // Fixed Template Literals with Backticks
+            gDot.style.left = `${finalLeft}px`;
+            gDot.style.top = `${finalTop}px`;
+
+            const currentGVector = Math.sqrt(Math.pow(data.gforce.lat, 2) + Math.pow(data.gforce.long, 2));
+            gReadout.innerText = `${currentGVector.toFixed(2)} G`;
+        };
+    </script>
+</body>
+</html>
