@@ -22,7 +22,7 @@ Open your mobile terminal emulator app and execute the setup environment stack:
 pkg update && pkg install python git -y
 
 # Clone your dashboard repository
-git clone https://github.com
+git clone https://github.com/BamBam98xGit/forza-horizon-dashboard
 cd forza-horizon-dashboard
 
 # Install required high-speed websocket dependencies
