@@ -8,7 +8,7 @@ import threading
 from forza_packet import ForzaTelemetryPacket  # Importing your brand new parsing model file!
 
 BIND_IP = "0.0.0.0"
-FORZA_PORT = 9994
+FORZA_PORT = 20055
 WS_PORT = 8765
 HTTP_PORT = 8000
 
