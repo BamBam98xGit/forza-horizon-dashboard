@@ -37,7 +37,7 @@ python server.py
 2. Scroll to the very bottom to locate the telemetry server fields:
    * **Data Out:** `On`
    * **Data Out IP Address:** Enter your phone's current **Local Wi-Fi IP Address** (e.g., `192.168.1.XX`).
-   * **Data Out IP Port:** `9994`
+   * **Data Out IP Port:** `20055`
 
 ### 3. Open the Interface
 Simply locate and open the `index.html` file using your mobile device's internal file explorer, or pull up your local loopback browser tab. The moment you press the accelerator in-game, the telemetry dials will light up instantly.
